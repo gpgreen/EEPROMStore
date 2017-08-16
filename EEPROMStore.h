@@ -38,6 +38,8 @@ struct EEPROMHeader
   byte lo_byte_rpm_range;
   byte contrast;
   byte multiplier;
+  byte backlight_hi;
+  byte backlight_lo;
 };
 
 class EEPROMStore
@@ -66,6 +68,9 @@ public:
 
 	// get contrast
 	uint8_t contrast();
+
+	// get backlight
+	int backlight();
 	
 private:
 

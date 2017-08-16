@@ -19,8 +19,8 @@
 // offset to beginning of eeprom mileage value array
 int k_start_eeprom_array = sizeof(struct EEPROMHeader);
 
-// eeprom library not working after length of 1024 bytes
-int k_end_of_eeprom = 1024;
+// eeprom library not working after length of 1024 bytes, even though the teensy 3.0 has 2048
+int k_end_of_eeprom = 1023;
 
 // The constructor
 EEPROMStore::EEPROMStore()
@@ -42,6 +42,8 @@ void EEPROMStore::resetHeader()
     _header.lo_byte_rpm_range = 0xe0;
     _header.contrast = 50;
     _header.multiplier = 0;
+    _header.backlight_hi = 0;
+    _header.backlight_lo = 128;
 }
 
 // read the header field from the EEPROM
@@ -59,10 +61,10 @@ void EEPROMStore::readEEPROMHeader() {
     }
 
     _header.hi_byte_rpm_range = EEPROM.read(1);
-    Serial.print("EEPROM Header hi byte rpm range:");
+    Serial.print("EEPROM Header [rpm range hi:0x");
     Serial.print(_header.hi_byte_rpm_range, HEX);
     _header.lo_byte_rpm_range = EEPROM.read(2);
-    Serial.print(" lo byte rpm range:");
+    Serial.print(" lo:0x");
     Serial.print(_header.lo_byte_rpm_range, HEX);
 
     _header.contrast = EEPROM.read(3);
@@ -70,8 +72,14 @@ void EEPROMStore::readEEPROMHeader() {
     Serial.print(_header.contrast, DEC);
 
     _header.multiplier = EEPROM.read(4);
-    Serial.print(" multiplier:");
-    Serial.println(_header.multiplier, HEX);
+    Serial.print(" multiplier:0x");
+    Serial.print(_header.multiplier, HEX);
+
+    _header.backlight_hi = EEPROM.read(5);
+    _header.backlight_lo = EEPROM.read(6);
+    Serial.print(" backlight:");
+    Serial.print((_header.backlight_hi << 8) + _header.backlight_lo, DEC);
+    Serial.println("]");
 }
 
 // initialize the eeprom to it's starting state with zero mileage
@@ -82,9 +90,9 @@ void EEPROMStore::initializeEEPROM() {
     EEPROM.write(1, _header.hi_byte_rpm_range);
     EEPROM.write(2, _header.lo_byte_rpm_range);
     EEPROM.write(3, _header.contrast);
-    // set the multiplier
-    byte* offset = &_header.multiplier;
-    EEPROM.write(reinterpret_cast<int>(offset), _header.multiplier);
+    EEPROM.write(4, _header.multiplier);
+    EEPROM.write(5, _header.backlight_hi);
+    EEPROM.write(6, _header.backlight_lo);
     for (int i=k_start_eeprom_array; i<k_end_of_eeprom; ++i)
         EEPROM.write(i, 0);
     _mileage = _written_mileage = 0;
@@ -95,28 +103,23 @@ void EEPROMStore::scanEEPROMForLatest() {
     byte b;
     _latest_offset = k_start_eeprom_array;
     _hi_bit = EEPROM.read(_latest_offset) & 0x80;
-    Serial.print("Scan eeprom with flag:");
+    Serial.print("Scan eeprom with flag:0x");
     Serial.println(_hi_bit, HEX);
-    for (int i=_latest_offset; i<k_end_of_eeprom - 1; ++i) {
+    for (int i=_latest_offset; i<k_end_of_eeprom; ++i) {
         _latest_offset += 2;
         b = EEPROM.read(i);
         if ((b & 0x80) == _hi_bit) {
             _latest_val = ((b & 0x7) << 8);
             _latest_val += EEPROM.read(++i);
-            Serial.print(i, DEC);
-            Serial.print(":");
-            Serial.println(_latest_val, DEC);
         } else {
             break;
         }
-        Serial.print("offset:");
-        Serial.println(_latest_offset, DEC);
     }
     // special case is all values are set with latest flag, so handle
     if (_latest_offset == k_end_of_eeprom) {
         _hi_bit ^= 0x80;
         _latest_offset = k_start_eeprom_array;
-        Serial.print("flip flag:");
+        Serial.print("flip flag:0x");
         Serial.println(_hi_bit, HEX);
     }
     Serial.print("write offset:");
@@ -127,7 +130,7 @@ void EEPROMStore::scanEEPROMForLatest() {
 
 // write a new mileage value, updates the multiplier if need be
 void EEPROMStore::writeLatestEEPROM(long val) {
-    Serial.print(" hi(");
+    Serial.print(" hi(0x");
     Serial.print(_hi_bit, HEX);
     Serial.print(":");
     Serial.print(_latest_offset, DEC);
@@ -196,4 +199,10 @@ long EEPROMStore::rpmRange()
 uint8_t EEPROMStore::contrast()
 {
     return _header.contrast;
+}
+
+// get the backlight pwm value
+int EEPROMStore::backlight()
+{
+    return (_header.backlight_hi << 8) + _header.backlight_lo;
 }
