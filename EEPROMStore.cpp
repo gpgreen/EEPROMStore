@@ -7,9 +7,9 @@
 //============================================================================
 
 #if defined(ARDUINO) && ARDUINO >= 100
-  #include "Arduino.h"
+#include "Arduino.h"
 #else
-  #include "WProgram.h"
+#include "WProgram.h"
 #endif
 
 #include <stdlib.h>
@@ -24,7 +24,8 @@ int k_end_of_eeprom = 1023;
 
 // The constructor
 EEPROMStore::EEPROMStore()
-    : _latest_offset(0), _latest_val(0), _hi_bit(0), _mileage(0), _written_mileage(0)
+    : _latest_offset(0), _latest_val(0), _hi_bit(0), _mileage(0),
+      _written_mileage(0)
 {
     resetHeader();
 }
@@ -44,6 +45,7 @@ void EEPROMStore::resetHeader()
     _header.multiplier = 0;
     _header.backlight_hi = 0;
     _header.backlight_lo = 128;
+    _header.voltage_correction = 1.0;
 }
 
 // read the header field from the EEPROM
@@ -51,15 +53,15 @@ void EEPROMStore::resetHeader()
 void EEPROMStore::readEEPROMHeader() {
     Serial.print("EEPROM size:");
     Serial.println(EEPROM.length(), DEC);
-
+	
     _header.version = EEPROM.read(0);
     Serial.print("EEPROM Header version:");
     Serial.println(_header.version, DEC);
     if (_header.version != 0) {
-        initializeEEPROM();
-        Serial.println("Reinitialized EEPROM as it was formatted incorrectly");
+	initializeEEPROM();
+	Serial.println("Reinitialized EEPROM as it was formatted incorrectly");
     }
-
+	
     _header.hi_byte_rpm_range = EEPROM.read(1);
     Serial.print("EEPROM Header [rpm range hi:0x");
     Serial.print(_header.hi_byte_rpm_range, HEX);
@@ -80,6 +82,11 @@ void EEPROMStore::readEEPROMHeader() {
     Serial.print(" backlight:");
     Serial.print((_header.backlight_hi << 8) + _header.backlight_lo, DEC);
     Serial.println("]");
+
+    EEPROM.get(7, _header.voltage_correction);
+    Serial.print(" volt corr:");
+    Serial.print(_header.voltage_correction, 6);
+    Serial.println("]");
 }
 
 // initialize the eeprom to it's starting state with zero mileage
@@ -93,8 +100,9 @@ void EEPROMStore::initializeEEPROM() {
     EEPROM.write(4, _header.multiplier);
     EEPROM.write(5, _header.backlight_hi);
     EEPROM.write(6, _header.backlight_lo);
+    EEPROM.write(7, _header.voltage_correction);
     for (int i=k_start_eeprom_array; i<k_end_of_eeprom; ++i)
-        EEPROM.write(i, 0);
+	EEPROM.write(i, 0);
     _mileage = _written_mileage = 0;
 }
 
@@ -106,21 +114,21 @@ void EEPROMStore::scanEEPROMForLatest() {
     Serial.print("Scan eeprom with flag:0x");
     Serial.println(_hi_bit, HEX);
     for (int i=_latest_offset; i<k_end_of_eeprom; ++i) {
-        _latest_offset += 2;
-        b = EEPROM.read(i);
-        if ((b & 0x80) == _hi_bit) {
-            _latest_val = ((b & 0x7) << 8);
-            _latest_val += EEPROM.read(++i);
-        } else {
-            break;
-        }
+	_latest_offset += 2;
+	b = EEPROM.read(i);
+	if ((b & 0x80) == _hi_bit) {
+	    _latest_val = ((b & 0x7) << 8);
+	    _latest_val += EEPROM.read(++i);
+	} else {
+	    break;
+	}
     }
     // special case is all values are set with latest flag, so handle
     if (_latest_offset == k_end_of_eeprom) {
-        _hi_bit ^= 0x80;
-        _latest_offset = k_start_eeprom_array;
-        Serial.print("flip flag:0x");
-        Serial.println(_hi_bit, HEX);
+	_hi_bit ^= 0x80;
+	_latest_offset = k_start_eeprom_array;
+	Serial.print("flip flag:0x");
+	Serial.println(_hi_bit, HEX);
     }
     Serial.print("write offset:");
     Serial.print(_latest_offset, DEC);
@@ -141,8 +149,8 @@ void EEPROMStore::writeLatestEEPROM(long val) {
     EEPROM.update(_latest_offset++, val & 0xf);
     // if we've reached the end of eeprom, flip the hi bit flag
     if (_latest_offset == k_end_of_eeprom) {
-        _hi_bit ^= 0x80;
-        _latest_offset = k_start_eeprom_array;
+	_hi_bit ^= 0x80;
+	_latest_offset = k_start_eeprom_array;
     }
 }
 
@@ -150,7 +158,7 @@ void EEPROMStore::writeLatestEEPROM(long val) {
 void EEPROMStore::readMileage() {
     scanEEPROMForLatest();
     for (int i=0; i<_header.multiplier; ++i)
-        _mileage += 32768;
+	_mileage += 32768;
     _mileage += _latest_val;
     _written_mileage = _mileage;
     Serial.print("readMileage:");
@@ -162,16 +170,16 @@ void EEPROMStore::readMileage() {
 void EEPROMStore::writeMileage() {
     Serial.print("writeMileage");
     if (_mileage == _written_mileage) {
-        Serial.println(" - skip");
-        return;
+	Serial.println(" - skip");
+	return;
     }
     long newval = _mileage;
     for (int i=0; i<_header.multiplier; ++i)
-        newval -= 32768;
+	newval -= 32768;
     if (newval >= 32768) {
-        _header.multiplier++;
-        EEPROM.update(3, _header.multiplier);
-        newval -= 32768;
+	_header.multiplier++;
+	EEPROM.update(3, _header.multiplier);
+	newval -= 32768;
     }
     writeLatestEEPROM(newval);
     _written_mileage = _mileage;
@@ -180,13 +188,13 @@ void EEPROMStore::writeMileage() {
 // return the current mileage
 long EEPROMStore::mileage()
 {
-	return _mileage;
+    return _mileage;
 }
 
 // add value to the mileage
 void EEPROMStore::addMileage(long val)
 {
-	_mileage += val;
+    _mileage += val;
 }
 
 // get the rpm range
@@ -205,4 +213,10 @@ uint8_t EEPROMStore::contrast()
 int EEPROMStore::backlight()
 {
     return (_header.backlight_hi << 8) + _header.backlight_lo;
+}
+
+// get the voltage correction value
+float EEPROMStore::voltageCorrection()
+{
+    return _header.voltage_correction;
 }
