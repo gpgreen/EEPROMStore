@@ -11,25 +11,23 @@
 
 #include <EEPROM.h>
 
-// To save wear and tear on the eeprom, write mileage values to the eeprom
-// in sequence. At the starting offset, write 2 byte pairs which contain
-// the mileage value. The high bit of the value is reserved to indicate the
-// latest value of mileage. When reading the sequence of values, if the high
-// bit changes from one value to the next, the previous value is the latest
-// mileage. Since we are writing 2 byte values with the hi bit reserved,
-// the maximum mileage stored is 2^15 or 32768. To allow the mileage to accumulate
-// more than this, we use a byte in the header, to store how many iterations
-// of the 2^15 number are used. If the header byte is 0, then the mileage is the value
-// stored, if it is 1, then add 32768 to the value stored, and so on. This allows
-// for a maximum mileage of 8,388,607. Once this value is reached, it will roll over
-// and start from 0 again
+// To save wear and tear on the eeprom, write mileage values to the
+// eeprom in sequence. At the starting offset, write 2 byte pairs
+// which contain the mileage value. After the latest mileage, write
+// one byte with the high bit set to indicate end of updates.  When
+// reading the sequence of values, as soon as the marker byte is read,
+// the last value is the current mileage Since we are writing 2 byte
+// values with the hi bit reserved, the maximum mileage stored is 2^15
+// or 32768. To allow the mileage to accumulate more than this, we use
+// a byte in the header, to store how many iterations of the 2^15
+// number are used. If the header byte is 0, then the mileage is the
+// value stored, if it is 1, then add 32768 to the value stored, and
+// so on. This allows for a maximum mileage of 8,388,607. Once this
+// value is reached, it will roll over and start from 0 again.
 //
-// To write a new mileage, set the high bit of the value to the flag value, then
-// write the 2 bytes in sequence. The offset is incremented to point to the next
-// value position. If the end of the eeprom array is reached, the flag bit value
-// is flipped. This way the flag flipping to find the latest value is only good
-// while scanning the sequence, ie if we hit the end, the last value is the latest.
-// The next write will be at the beginning with the opposite flag
+// To write a new mileage, write the new value at the current
+// write offset, then write the marker byte (hi bit set) following.
+//
 // See scanEEPROMForLatest for the initiation of this algorithm
 
 struct EEPROMHeader 
@@ -94,18 +92,18 @@ private:
 
     // set the header structure to default values
     void resetHeader();
+
+    // update values in the header to EEPROM
+    void updateHeader();
 	
     // the header
-    struct EEPROMHeader _header;
+    struct EEPROMHeader _header __attribute__ ((aligned (4)));
 	
     // offset in eeprom to latest mileage value
     int _latest_offset;
 
     // latest mileage value in eeprom (not real mileage, due to multiplier)
     long _latest_val;
-
-    // flag to set in high bit of mileage value in eeprom
-    byte _hi_bit;
 
     // current mileage
     long _mileage;

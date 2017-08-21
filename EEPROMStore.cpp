@@ -20,18 +20,18 @@
 int k_start_eeprom_array = sizeof(struct EEPROMHeader);
 
 // eeprom library not working after length of 1024 bytes, even though the teensy 3.0 has 2048
-int k_end_of_eeprom = 1023;
+int k_end_of_eeprom = 1024;
 
 // The constructor
 EEPROMStore::EEPROMStore()
-    : _latest_offset(0), _latest_val(0), _hi_bit(0), _mileage(0),
-      _written_mileage(0)
+    : _latest_offset(0), _latest_val(0), _mileage(0), _written_mileage(0)
 {
     resetHeader();
 }
 
 void EEPROMStore::begin()
 {
+    //initializeEEPROM();
     readEEPROMHeader();
     readMileage();
 }
@@ -93,44 +93,54 @@ void EEPROMStore::readEEPROMHeader() {
 void EEPROMStore::initializeEEPROM() {
     Serial.println("initializeEEPROM");
     resetHeader();
-    EEPROM.write(0, _header.version);
-    EEPROM.write(1, _header.hi_byte_rpm_range);
-    EEPROM.write(2, _header.lo_byte_rpm_range);
-    EEPROM.write(3, _header.contrast);
-    EEPROM.write(4, _header.multiplier);
-    EEPROM.write(5, _header.backlight_hi);
-    EEPROM.write(6, _header.backlight_lo);
-    EEPROM.write(7, _header.voltage_correction);
+    updateHeader();
     for (int i=k_start_eeprom_array; i<k_end_of_eeprom; ++i)
 	EEPROM.write(i, 0);
     _mileage = _written_mileage = 0;
+}
+
+// write the header with updated values
+void EEPROMStore::updateHeader() {
+    Serial.println("updateHeader");
+    EEPROM.update(0, _header.version);
+    EEPROM.update(1, _header.hi_byte_rpm_range);
+    EEPROM.update(2, _header.lo_byte_rpm_range);
+    EEPROM.update(3, _header.contrast);
+    EEPROM.update(4, _header.multiplier);
+    EEPROM.update(5, _header.backlight_hi);
+    EEPROM.update(6, _header.backlight_lo);
+    EEPROM.update(7, _header.voltage_correction);
 }
 
 // read the EEPROM value array to get the latest mileage value
 void EEPROMStore::scanEEPROMForLatest() {
     byte b;
     _latest_offset = k_start_eeprom_array;
-    _hi_bit = EEPROM.read(_latest_offset) & 0x80;
-    Serial.print("Scan eeprom with flag:0x");
-    Serial.println(_hi_bit, HEX);
+    Serial.print("Scan eeprom for end marker");
+    Serial.print(" at offset:");
+    Serial.println(_latest_offset, DEC);
     for (int i=_latest_offset; i<k_end_of_eeprom; ++i) {
-	_latest_offset += 2;
 	b = EEPROM.read(i);
-	if ((b & 0x80) == _hi_bit) {
-	    _latest_val = ((b & 0x7) << 8);
-	    _latest_val += EEPROM.read(++i);
+	Serial.print("b:");
+	Serial.print(b, HEX);
+	Serial.print(" offset:");
+	Serial.print(i, DEC);
+	if ((b & 0x80) == 0) {
+	    _latest_val = (b << 8) + EEPROM.read(++i);
+	    Serial.print(" val:");
+	    Serial.println(_latest_val, DEC);
 	} else {
 	    break;
 	}
+	_latest_offset += 2;
     }
-    // special case is all values are set with latest flag, so handle
-    if (_latest_offset == k_end_of_eeprom) {
-	_hi_bit ^= 0x80;
+    // special case is EEPROM all 0, no values written yet
+    if (_latest_offset >= k_end_of_eeprom) {
 	_latest_offset = k_start_eeprom_array;
-	Serial.print("flip flag:0x");
-	Serial.println(_hi_bit, HEX);
+	_latest_val = 0;
+	Serial.println("\nblank mileage");
     }
-    Serial.print("write offset:");
+    Serial.print("\nwrite offset:");
     Serial.print(_latest_offset, DEC);
     Serial.print(" latest:");
     Serial.println(_latest_val, DEC);
@@ -138,20 +148,25 @@ void EEPROMStore::scanEEPROMForLatest() {
 
 // write a new mileage value, updates the multiplier if need be
 void EEPROMStore::writeLatestEEPROM(long val) {
-    Serial.print(" hi(0x");
-    Serial.print(_hi_bit, HEX);
-    Serial.print(":");
-    Serial.print(_latest_offset, DEC);
-    Serial.print("):");
-    Serial.println(val, DEC);
     _latest_val = val;
-    EEPROM.update(_latest_offset++, ((val >> 8) & 0x7) | _hi_bit);
-    EEPROM.update(_latest_offset++, val & 0xf);
-    // if we've reached the end of eeprom, flip the hi bit flag
-    if (_latest_offset == k_end_of_eeprom) {
-	_hi_bit ^= 0x80;
+    // check for case where we have just rolled over, last byte will be marker
+    // _latest_offset will be start
+    if (_latest_offset == k_start_eeprom_array && EEPROM.read(k_end_of_eeprom-2) == 0x80) {
+	EEPROM.write(k_end_of_eeprom - 2, 0);
+	Serial.println("blank end of eeprom array");
+    }
+    EEPROM.update(_latest_offset++, ((val & 0xff00) >> 8));
+    EEPROM.update(_latest_offset++, val & 0x00ff);
+    EEPROM.write(_latest_offset, 0x80);
+    // write the end marker
+    // if we've reached the end of eeprom, reset the latest offset
+    if (_latest_offset >= k_end_of_eeprom - 2) {
 	_latest_offset = k_start_eeprom_array;
     }
+    Serial.print("write offset:");
+    Serial.print(_latest_offset, DEC);
+    Serial.print(" latest:");
+    Serial.println(_latest_val, DEC);
 }
 
 // find the current mileage stored in EEPROM
@@ -178,9 +193,13 @@ void EEPROMStore::writeMileage() {
 	newval -= 32768;
     if (newval >= 32768) {
 	_header.multiplier++;
-	EEPROM.update(3, _header.multiplier);
+	updateHeader();
 	newval -= 32768;
     }
+    Serial.print(" mult:");
+    Serial.print(_header.multiplier, DEC);
+    Serial.print(" val:");
+    Serial.println(newval, DEC);
     writeLatestEEPROM(newval);
     _written_mileage = _mileage;
 }
