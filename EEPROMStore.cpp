@@ -39,13 +39,17 @@ void EEPROMStore::begin()
 void EEPROMStore::resetHeader()
 {
     _header.version = 0;
-    _header.hi_byte_rpm_range = 0x2e;
-    _header.lo_byte_rpm_range = 0xe0;
+    _header.flags = 0;
+    _header.rpm_range = 12000L;
     _header.contrast = 50;
     _header.multiplier = 0;
     _header.backlight_hi = 0;
     _header.backlight_lo = 128;
     _header.voltage_correction = 1.0;
+    _header.trip1.multiplier = 0;
+    _header.trip1.marker = 0;
+    _header.trip2.multiplier = 0;
+    _header.trip2.marker = 0;
 }
 
 // read the header field from the EEPROM
@@ -53,40 +57,50 @@ void EEPROMStore::resetHeader()
 void EEPROMStore::readEEPROMHeader() {
     Serial.print("EEPROM size:");
     Serial.println(EEPROM.length(), DEC);
-	
-    _header.version = EEPROM.read(0);
+
+    EEPROM.get(0, _header);
+
     Serial.print("EEPROM Header version:");
     Serial.println(_header.version, DEC);
     if (_header.version != 0) {
 	initializeEEPROM();
 	Serial.println("Reinitialized EEPROM as it was formatted incorrectly");
     }
-	
-    _header.hi_byte_rpm_range = EEPROM.read(1);
-    Serial.print("EEPROM Header [rpm range hi:0x");
-    Serial.print(_header.hi_byte_rpm_range, HEX);
-    _header.lo_byte_rpm_range = EEPROM.read(2);
-    Serial.print(" lo:0x");
-    Serial.print(_header.lo_byte_rpm_range, HEX);
 
-    _header.contrast = EEPROM.read(3);
+    Serial.print("EEPROM Header [flags:0x");
+    Serial.print(_header.flags, HEX);
+    
+    Serial.print(" rpm range:");
+    Serial.print(_header.rpm_range, DEC);
+
     Serial.print(" contrast:");
     Serial.print(_header.contrast, DEC);
 
-    _header.multiplier = EEPROM.read(4);
-    Serial.print(" multiplier:0x");
-    Serial.print(_header.multiplier, HEX);
+    Serial.print(" multiplier:");
+    Serial.print(_header.multiplier, DEC);
 
-    _header.backlight_hi = EEPROM.read(5);
-    _header.backlight_lo = EEPROM.read(6);
     Serial.print(" backlight:");
     Serial.print((_header.backlight_hi << 8) + _header.backlight_lo, DEC);
-    Serial.println("]");
 
-    EEPROM.get(7, _header.voltage_correction);
     Serial.print(" volt corr:");
     Serial.print(_header.voltage_correction, 6);
     Serial.println("]");
+
+    Serial.print("trip1 multiplier:");
+    Serial.print(_header.trip1.multiplier, DEC);
+    Serial.print(" marker:");
+    Serial.println(_header.trip1.marker, DEC);
+
+    Serial.print("trip2 multiplier:");
+    Serial.print(_header.trip2.multiplier, DEC);
+    Serial.print(" marker:");
+    Serial.println(_header.trip2.marker, DEC);
+}
+
+// write the header with updated values
+void EEPROMStore::updateHeader() {
+    Serial.println("updateHeader");
+    EEPROM.put(0, _header);
 }
 
 // initialize the eeprom to it's starting state with zero mileage
@@ -97,19 +111,6 @@ void EEPROMStore::initializeEEPROM() {
     for (int i=k_start_eeprom_array; i<k_end_of_eeprom; ++i)
 	EEPROM.write(i, 0);
     _mileage = _written_mileage = 0;
-}
-
-// write the header with updated values
-void EEPROMStore::updateHeader() {
-    Serial.println("updateHeader");
-    EEPROM.update(0, _header.version);
-    EEPROM.update(1, _header.hi_byte_rpm_range);
-    EEPROM.update(2, _header.lo_byte_rpm_range);
-    EEPROM.update(3, _header.contrast);
-    EEPROM.update(4, _header.multiplier);
-    EEPROM.update(5, _header.backlight_hi);
-    EEPROM.update(6, _header.backlight_lo);
-    EEPROM.update(7, _header.voltage_correction);
 }
 
 // read the EEPROM value array to get the latest mileage value
@@ -169,15 +170,37 @@ void EEPROMStore::writeLatestEEPROM(long val) {
     Serial.println(_latest_val, DEC);
 }
 
+long EEPROMStore::multiplyMileage(byte multiplier, long val) {
+    long result = 0;
+    for (int i=0; i<multiplier; ++i)
+	result += 32768;
+    result += val;
+    return result;
+}
+
 // find the current mileage stored in EEPROM
 void EEPROMStore::readMileage() {
     scanEEPROMForLatest();
-    for (int i=0; i<_header.multiplier; ++i)
-	_mileage += 32768;
-    _mileage += _latest_val;
+    _mileage = multiplyMileage(_header.multiplier, _latest_val);
     _written_mileage = _mileage;
     Serial.print("readMileage:");
     Serial.println(_mileage, DEC);
+}
+
+// take total mileage and current multiplier, get an updated multiplier and
+// remainder value. Returns true if multiplier was updated
+bool EEPROMStore::collapseMileage(long mileage, byte& multiplier, long& val)
+{
+    bool multiplier_changed = false;
+    val = mileage;
+    for (int i=0; i<multiplier; ++i)
+	val -= 32768;
+    if (val >= 32768) {
+	multiplier++;
+	multiplier_changed = true;
+	val -= 32768;
+    }
+    return multiplier_changed;
 }
 
 // write the current mileage in the EEPROM, no effect
@@ -188,14 +211,9 @@ void EEPROMStore::writeMileage() {
 	Serial.println(" - skip");
 	return;
     }
-    long newval = _mileage;
-    for (int i=0; i<_header.multiplier; ++i)
-	newval -= 32768;
-    if (newval >= 32768) {
-	_header.multiplier++;
+    long newval;
+    if (collapseMileage(_mileage, _header.multiplier, newval))
 	updateHeader();
-	newval -= 32768;
-    }
     Serial.print(" mult:");
     Serial.print(_header.multiplier, DEC);
     Serial.print(" val:");
@@ -219,7 +237,14 @@ void EEPROMStore::addMileage(long val)
 // get the rpm range
 long EEPROMStore::rpmRange()
 {
-    return (_header.hi_byte_rpm_range << 8) + _header.lo_byte_rpm_range;
+    return _header.rpm_range;
+}
+
+// set the rpm range
+void EEPROMStore::setRPMRange(long range)
+{
+    _header.rpm_range = range;
+    updateHeader();
 }
 
 // get the contrast
@@ -228,14 +253,58 @@ uint8_t EEPROMStore::contrast()
     return _header.contrast;
 }
 
+// set the contrast
+void EEPROMStore::setContrast(uint8_t newval)
+{
+    _header.contrast = newval;
+    updateHeader();
+}
+
 // get the backlight pwm value
 int EEPROMStore::backlight()
 {
     return (_header.backlight_hi << 8) + _header.backlight_lo;
 }
 
+// set the backlight
+void EEPROMStore::setBacklight(int newval)
+{
+    _header.backlight_hi = (uint8_t)((newval & 0xff00) >> 8);
+    _header.backlight_lo = (uint8_t)(newval & 0xff);
+    updateHeader();
+}
+
 // get the voltage correction value
 float EEPROMStore::voltageCorrection()
 {
     return _header.voltage_correction;
+}
+
+// set the voltage correction
+void EEPROMStore::setVoltageCorrection(float newval)
+{
+    _header.voltage_correction = newval;
+    updateHeader();
+}
+
+bool EEPROMStore::isMetric()
+{
+    return (_header.flags & METRIC_FLAG) == METRIC_FLAG;
+}
+
+bool EEPROMStore::isImperial()
+{
+    return !isMetric();
+}
+
+void EEPROMStore::setMetric()
+{
+    _header.flags |= METRIC_FLAG;
+    updateHeader();
+}
+
+void EEPROMStore::setImperial()
+{
+    _header.flags &= ~(METRIC_FLAG);
+    updateHeader();
 }

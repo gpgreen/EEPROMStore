@@ -30,16 +30,26 @@
 //
 // See scanEEPROMForLatest for the initiation of this algorithm
 
+const int METRIC_FLAG = 0x1;
+
+struct TripMarker
+{
+    byte multiplier;
+    long marker;
+};
+
 struct EEPROMHeader 
 {
     byte version;
-    byte hi_byte_rpm_range;
-    byte lo_byte_rpm_range;
+    byte flags;
+    long rpm_range;
     byte contrast;
     byte multiplier;
     byte backlight_hi;
     byte backlight_lo;
     float voltage_correction;
+    TripMarker trip1;
+    TripMarker trip2;
 };
 
 class EEPROMStore
@@ -65,16 +75,28 @@ public:
 
     // get rpm range
     long rpmRange();
+    void setRPMRange(long range);
 
     // get contrast
     uint8_t contrast();
-
+    void setContrast(uint8_t newval);
+    
     // get backlight
     int backlight();
+    void setBacklight(int newval);
 
     // get voltage correction
     float voltageCorrection();
-	
+    void setVoltageCorrection(float newval);
+
+    // test for units
+    bool isMetric();
+    bool isImperial();
+
+    // set units, writes the EEPROM
+    void setMetric();
+    void setImperial();
+    
 private:
 
     // read the header field from the EEPROM
@@ -95,7 +117,11 @@ private:
 
     // update values in the header to EEPROM
     void updateHeader();
-	
+
+    // manipulate mileage and multiplier pairs
+    long multiplyMileage(byte multiplier, long val);
+    bool collapseMileage(long mileage, byte& multiplier, long& val);
+
     // the header
     struct EEPROMHeader _header __attribute__ ((aligned (4)));
 	
