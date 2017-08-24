@@ -68,11 +68,14 @@ public:
     void writeMileage();
 
     // get the current mileage
-    long mileage();
+    int mileage();
 
     // add to the current mileage
-    void addMileage(long val);
+    void addMileage(int val);
 
+    // set mileage
+    void setMileage(int val);
+    
     // get rpm range
     long rpmRange();
     void setRPMRange(long range);
@@ -96,6 +99,14 @@ public:
     // set units, writes the EEPROM
     void setMetric();
     void setImperial();
+
+    // resett trip markers - set marker to current mileage settings
+    void resetTrip1();
+    void resetTrip2();
+
+    // get current trip value
+    int trip1();
+    int trip2();
     
 private:
 
@@ -119,8 +130,8 @@ private:
     void updateHeader();
 
     // manipulate mileage and multiplier pairs
-    long multiplyMileage(byte multiplier, long val);
-    bool collapseMileage(long mileage, byte& multiplier, long& val);
+    int multiplyMileage(byte multiplier, long val);
+    bool collapseMileage(int mileage, byte& multiplier, long& val);
 
     // the header
     struct EEPROMHeader _header __attribute__ ((aligned (4)));
@@ -132,10 +143,10 @@ private:
     long _latest_val;
 
     // current mileage
-    long _mileage;
+    int _mileage;
 
     // last mileage written to eeprom
-    long _written_mileage;
+    int _written_mileage;
 };
 
 #endif /* EEPROMSTORE_H_ */

@@ -170,8 +170,8 @@ void EEPROMStore::writeLatestEEPROM(long val) {
     Serial.println(_latest_val, DEC);
 }
 
-long EEPROMStore::multiplyMileage(byte multiplier, long val) {
-    long result = 0;
+int EEPROMStore::multiplyMileage(byte multiplier, long val) {
+    int result = 0;
     for (int i=0; i<multiplier; ++i)
 	result += 32768;
     result += val;
@@ -189,17 +189,19 @@ void EEPROMStore::readMileage() {
 
 // take total mileage and current multiplier, get an updated multiplier and
 // remainder value. Returns true if multiplier was updated
-bool EEPROMStore::collapseMileage(long mileage, byte& multiplier, long& val)
+bool EEPROMStore::collapseMileage(int mileage, byte& multiplier, long& val)
 {
     bool multiplier_changed = false;
-    val = mileage;
+    int cval = mileage;
     for (int i=0; i<multiplier; ++i)
-	val -= 32768;
-    if (val >= 32768) {
+	cval -= 32768;
+    while (cval >= 32768) {
 	multiplier++;
 	multiplier_changed = true;
-	val -= 32768;
+	cval -= 32768;
     }
+    // now that we are under 32768, we can use a long
+    val = cval;
     return multiplier_changed;
 }
 
@@ -223,13 +225,29 @@ void EEPROMStore::writeMileage() {
 }
 
 // return the current mileage
-long EEPROMStore::mileage()
+int EEPROMStore::mileage()
 {
     return _mileage;
 }
 
+// set the current mileage
+void EEPROMStore::setMileage(int val)
+{
+    Serial.print("Set mileage to:");
+    Serial.println(val, DEC);
+    _written_mileage = _mileage = val;
+    long newval;
+    byte mult = 0;
+    collapseMileage(_mileage, mult, newval);
+    writeLatestEEPROM(newval);
+    _header.multiplier = mult;
+    _header.trip1.multiplier = _header.trip2.multiplier = mult;
+    _header.trip1.marker = _header.trip2.marker = newval;
+    updateHeader();
+}
+    
 // add value to the mileage
-void EEPROMStore::addMileage(long val)
+void EEPROMStore::addMileage(int val)
 {
     _mileage += val;
 }
@@ -307,4 +325,38 @@ void EEPROMStore::setImperial()
 {
     _header.flags &= ~(METRIC_FLAG);
     updateHeader();
+}
+
+void EEPROMStore::resetTrip1()
+{
+    long val;
+    byte mult = 0;
+    collapseMileage(_mileage, mult, val);
+    _header.trip1.multiplier = mult;
+    _header.trip1.marker = val;
+    updateHeader();
+}
+
+void EEPROMStore::resetTrip2()
+{
+    long val;
+    byte mult = 0;
+    collapseMileage(_mileage, mult, val);
+    _header.trip2.multiplier = mult;
+    _header.trip2.marker = val;
+    updateHeader();
+}
+
+int EEPROMStore::trip1()
+{
+    int marker_mileage = multiplyMileage(_header.trip1.multiplier,
+					 _header.trip1.marker);
+    return _mileage - marker_mileage;
+}
+
+int EEPROMStore::trip2()
+{
+    int marker_mileage = multiplyMileage(_header.trip2.multiplier,
+					 _header.trip2.marker);
+    return _mileage - marker_mileage;
 }
