@@ -45,7 +45,9 @@ void EEPROMStore::resetHeader()
     _header.multiplier = 0;
     _header.backlight_hi = 0;
     _header.backlight_lo = 128;
+    _header.voltage_offset = 0.0;
     _header.voltage_correction = 1.0;
+    _header.speedo_correction = 1.0;
     _header.trip1.multiplier = 0;
     _header.trip1.marker = 0;
     _header.trip2.multiplier = 0;
@@ -82,8 +84,16 @@ void EEPROMStore::readEEPROMHeader() {
     Serial.print(" backlight:");
     Serial.print((_header.backlight_hi << 8) + _header.backlight_lo, DEC);
 
+    Serial.print(" volt off:");
+    Serial.print(_header.voltage_offset, 6);
+    Serial.println("]");
+
     Serial.print(" volt corr:");
     Serial.print(_header.voltage_correction, 6);
+    Serial.println("]");
+
+    Serial.print(" speed corr:");
+    Serial.print(_header.speedo_correction, 6);
     Serial.println("]");
 
     Serial.print("trip1 multiplier:");
@@ -292,6 +302,19 @@ void EEPROMStore::setBacklight(int newval)
     updateHeader();
 }
 
+// get the voltage offset value
+float EEPROMStore::voltageOffset()
+{
+    return _header.voltage_offset;
+}
+
+// set the voltage offset
+void EEPROMStore::setVoltageOffset(float newval)
+{
+    _header.voltage_offset = newval;
+    updateHeader();
+}
+
 // get the voltage correction value
 float EEPROMStore::voltageCorrection()
 {
@@ -302,6 +325,19 @@ float EEPROMStore::voltageCorrection()
 void EEPROMStore::setVoltageCorrection(float newval)
 {
     _header.voltage_correction = newval;
+    updateHeader();
+}
+
+// get the speedo correction value
+float EEPROMStore::speedoCorrection()
+{
+    return _header.speedo_correction;
+}
+
+// set the speedo correction
+void EEPROMStore::setSpeedoCorrection(float newval)
+{
+    _header.speedo_correction = newval;
     updateHeader();
 }
 

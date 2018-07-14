@@ -47,7 +47,9 @@ struct EEPROMHeader
     byte multiplier;
     byte backlight_hi;
     byte backlight_lo;
+    float voltage_offset;
     float voltage_correction;
+    float speedo_correction;
     TripMarker trip1;
     TripMarker trip2;
 };
@@ -88,9 +90,17 @@ public:
     int backlight();
     void setBacklight(int newval);
 
+    // get voltage offset
+    float voltageOffset();
+    void setVoltageOffset(float newval);
+
     // get voltage correction
     float voltageCorrection();
     void setVoltageCorrection(float newval);
+
+    // get speedo correction
+    float speedoCorrection();
+    void setSpeedoCorrection(float newval);
 
     // test for units
     bool isMetric();
