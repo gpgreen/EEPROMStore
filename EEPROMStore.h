@@ -35,14 +35,14 @@ const int METRIC_FLAG = 0x1;
 struct TripMarker
 {
     byte multiplier;
-    long marker;
+    word marker;
 };
 
 struct EEPROMHeader 
 {
     byte version;
     byte flags;
-    long rpm_range;
+    word rpm_range;
     byte contrast;
     byte multiplier;
     byte backlight_hi;
@@ -70,17 +70,17 @@ public:
     void writeMileage();
 
     // get the current mileage
-    int mileage();
+    unsigned long mileage();
 
     // add to the current mileage
-    void addMileage(int val);
+    void addMileage(unsigned long val);
 
     // set mileage
-    void setMileage(int val);
+    void setMileage(unsigned long val);
     
     // get rpm range
-    long rpmRange();
-    void setRPMRange(long range);
+    word rpmRange();
+    void setRPMRange(word range);
 
     // get contrast
     uint8_t contrast();
@@ -115,8 +115,8 @@ public:
     void resetTrip2();
 
     // get current trip value
-    int trip1();
-    int trip2();
+    unsigned long trip1();
+    unsigned long trip2();
     
 private:
 
@@ -128,7 +128,7 @@ private:
     void readMileage();
 
     // write a new mileage value, updates the multiplier if need be
-    void writeLatestEEPROM(long val);
+    void writeLatestEEPROM(word val);
 
     // read the EEPROM value array to get the latest mileage value
     void scanEEPROMForLatest();
@@ -140,8 +140,8 @@ private:
     void updateHeader();
 
     // manipulate mileage and multiplier pairs
-    int multiplyMileage(byte multiplier, long val);
-    bool collapseMileage(int mileage, byte& multiplier, long& val);
+    unsigned long multiplyMileage(byte multiplier, word val);
+    bool collapseMileage(unsigned long mileage, byte& multiplier, word& val);
 
     // the header
     struct EEPROMHeader _header __attribute__ ((aligned (4)));
@@ -150,13 +150,13 @@ private:
     int _latest_offset;
 
     // latest mileage value in eeprom (not real mileage, due to multiplier)
-    long _latest_val;
+    word _latest_val;
 
     // current mileage
-    int _mileage;
+    unsigned long _mileage;
 
     // last mileage written to eeprom
-    int _written_mileage;
+    unsigned long _written_mileage;
 };
 
 #endif /* EEPROMSTORE_H_ */
