@@ -19,8 +19,14 @@
 // offset to beginning of eeprom mileage value array
 int k_start_eeprom_array = sizeof(struct EEPROMHeader);
 
-// eeprom library not working after length of 1024 bytes, even though the teensy 3.0 has 2048
-int k_end_of_eeprom = 1024;
+#if defined(__AVR_ATmega644__) || defined(__AVR_ATmega644P__)
+  int k_end_of_eeprom = 2048;
+#elif defined(__arm__) && defined(TEENSYDUINO)
+  // eeprom library not working after length of 1024 bytes, even though the teensy 3.0 has 2048
+  int k_end_of_eeprom = 1024;
+#else
+  #error "Unknown chip, need to specify with eeprom size"
+#endif
 
 // The constructor
 EEPROMStore::EEPROMStore()
