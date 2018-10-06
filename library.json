@@ -3,8 +3,7 @@
 "frameworks": "Arduino",
 "keywords": "storage",
 "description": "Manage EEPROM for motorcycle gauge",
-"url": "http://www.pjrc.com/teensy/td_libs_FreqCount.html",
-"downloadUrl": "http://www.pjrc.com/teensy/arduino_libraries/FreqCount.zip",
+"url": "http://www.bit-builder.com/EEPROMStore.html",
 "authors":
 {
         "name": "Greg Green",
@@ -13,6 +12,6 @@
 "repository":
 {
     "type": "git",
-    "url": "https://github.com/PaulStoffregen/FreqCount"
+    "url": "https://github.com/gpgreen/EEPROMStore"
 }
 }

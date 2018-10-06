@@ -1,3 +1,57 @@
+#######################################
+# Syntax Coloring Map For EEPROMStore
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+EEPROMStore	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+initializeEEPROM	KEYWORD2
+writeMileage	KEYWORD2
+mileage	KEYWORD2
+addMileage	KEYWORD2
+setMileage	KEYWORD2
+rpmRange	KEYWORD2
+setRPMRange	KEYWORD2
+contrast	KEYWORD2
+setContrast	KEYWORD2
+backlight	KEYWORD2
+setBacklight	KEYWORD2
+voltageOffset	KEYWORD2
+setVoltageOffset	KEYWORD2
+voltageCorrection	KEYWORD2
+setVoltageCorrection	KEYWORD2
+speedoCorrection	KEYWORD2
+setSpeedoCorrection	KEYWORD2
+isMetric	KEYWORD2
+isImperial	KEYWORD2
+setMetric	KEYWORD2
+setImperial	KEYWORD2
+resetTrip1	KEYWORD2
+resetTrip2	KEYWORD2
+trip1	KEYWORD2
+trip2	KEYWORD2
+
+#######################################
+# Structures (KEYWORD3)
+#######################################
+
+TripMarker	KEYWORD3
+EEPROMHeader	KEYWORD3
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+METRIC_FLAG	LITERAL1
+
 EEPROMStore	KEYWORD1
 begin	KEYWORD2
 available	KEYWORD2
