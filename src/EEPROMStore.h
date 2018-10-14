@@ -32,6 +32,9 @@
 
 const int METRIC_FLAG = 0x1;
 
+// define if you want to see debug messages on the serial port
+//#define SERIAL_DEBUG_MSG
+
 struct TripMarker
 {
     byte multiplier;

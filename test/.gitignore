@@ -1,0 +1,11 @@
+# .gitignore for test
+*.o
+*.d
+*~
+*.log
+*.gcda
+*.gcno
+*.info
+out
+tests.cpp
+main

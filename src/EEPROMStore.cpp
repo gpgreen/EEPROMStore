@@ -137,14 +137,18 @@ void EEPROMStore::scanEEPROMForLatest() {
     Serial.println(_latest_offset, DEC);
     for (int i=_latest_offset; i<k_end_of_eeprom; ++i) {
         b = EEPROM.read(i);
+#if defined(SERIAL_DEBUG_MSG)
         Serial.print("b:");
         Serial.print(b, HEX);
         Serial.print(" offset:");
         Serial.print(i, DEC);
+#endif
         if ((b & 0x80) == 0) {
             _latest_val = (b << 8) + EEPROM.read(++i);
+#if defined(SERIAL_DEBUG_MSG)
             Serial.print(" val:");
             Serial.println(_latest_val, DEC);
+#endif
         } else {
             break;
         }
@@ -154,7 +158,9 @@ void EEPROMStore::scanEEPROMForLatest() {
     if (_latest_offset >= k_end_of_eeprom) {
         _latest_offset = k_start_eeprom_array;
         _latest_val = 0;
+#if defined(SERIAL_DEBUG_MSG)
         Serial.println("\nblank mileage");
+#endif
     }
     Serial.print("\nwrite offset:");
     Serial.print(_latest_offset, DEC);
@@ -167,28 +173,39 @@ void EEPROMStore::writeLatestEEPROM(word val) {
     _latest_val = val;
     // check for case where we have just rolled over, last byte will be marker
     // _latest_offset will be start
+    bool overwrite_last = false;
     if (_latest_offset == k_start_eeprom_array && EEPROM.read(k_end_of_eeprom-2) == 0x80) {
-        EEPROM.write(k_end_of_eeprom - 2, 0);
+        overwrite_last = true;
+#if defined(SERIAL_DEBUG_MSG)
         Serial.println("blank end of eeprom array");
+#endif
     }
-    EEPROM.update(_latest_offset++, ((val & 0xff00) >> 8));
-    EEPROM.update(_latest_offset++, val & 0x00ff);
-    EEPROM.write(_latest_offset, 0x80);
+    // if the mcu is turned off here before it is able to finish writing we could
+    // get a corrupted flash, so write the new marker byte first, and don't overwrite
+    // the existing marker byte till last. The additional marker byte won't get found
+    // before the existing one if it hasn't yet been overwritten
+    EEPROM.write(_latest_offset + 2, 0x80);
+    EEPROM.update(_latest_offset + 1, val & 0x00ff);
+    EEPROM.update(_latest_offset, ((val & 0xff00) >> 8));
+    if (overwrite_last) {
+        EEPROM.write(k_end_of_eeprom - 2, 0);
+    }
+    _latest_offset += 2;
     // write the end marker
     // if we've reached the end of eeprom, reset the latest offset
     if (_latest_offset >= k_end_of_eeprom - 2) {
         _latest_offset = k_start_eeprom_array;
     }
+#if defined(SERIAL_DEBUG_MSG)
     Serial.print("write offset:");
     Serial.print(_latest_offset, DEC);
     Serial.print(" latest:");
     Serial.println(_latest_val, DEC);
+#endif
 }
 
 unsigned long EEPROMStore::multiplyMileage(byte multiplier, word val) {
-    unsigned long result = 0;
-    for (int i=0; i<multiplier; ++i)
-        result += 65535;
+    unsigned long result = multiplier * 65535;
     result += val;
     return result;
 }
@@ -207,11 +224,9 @@ void EEPROMStore::readMileage() {
 bool EEPROMStore::collapseMileage(unsigned long mileage, byte& multiplier, word& val)
 {
     bool multiplier_changed = false;
-    unsigned long cval = mileage;
-    for (int i=0; i<multiplier; ++i)
-        cval -= 65535;
+    unsigned long cval = mileage - (multiplier * 65535);
     while (cval >= 65535) {
-        multiplier++;
+        ++multiplier;
         multiplier_changed = true;
         cval -= 65535;
     }
@@ -223,18 +238,24 @@ bool EEPROMStore::collapseMileage(unsigned long mileage, byte& multiplier, word&
 // write the current mileage in the EEPROM, no effect
 // if the value is the same as already stored
 void EEPROMStore::writeMileage() {
+#if defined(SERIAL_DEBUG_MSG)
     Serial.print("writeMileage");
+#endif
     if (_mileage == _written_mileage) {
+#if defined(SERIAL_DEBUG_MSG)
         Serial.println(" - skip");
+#endif
         return;
     }
     word newval;
     if (collapseMileage(_mileage, _header.multiplier, newval))
         updateHeader();
+#if defined(SERIAL_DEBUG_MSG)
     Serial.print(" mult:");
     Serial.print(_header.multiplier, DEC);
     Serial.print(" val:");
     Serial.println(newval, DEC);
+#endif
     writeLatestEEPROM(newval);
     _written_mileage = _mileage;
 }
