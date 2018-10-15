@@ -17,12 +17,12 @@
 // one byte with the high bit set to indicate end of updates.  When
 // reading the sequence of values, as soon as the marker byte is read,
 // the last value is the current mileage Since we are writing 2 byte
-// values with the hi bit reserved, the maximum mileage stored is 2^15
-// or 32768. To allow the mileage to accumulate more than this, we use
-// a byte in the header, to store how many iterations of the 2^15
+// values with the hi bit reserved, the maximum mileage stored is 0x8fff
+// or 36863. To allow the mileage to accumulate more than this, we use
+// a byte in the header, to store how many iterations of the max
 // number are used. If the header byte is 0, then the mileage is the
-// value stored, if it is 1, then add 32768 to the value stored, and
-// so on. This allows for a maximum mileage of 8,388,607. Once this
+// value stored, if it is 1, then add 36863 to the value stored, and
+// so on. This allows for a maximum mileage of 9,436,928. Once this
 // value is reached, it will roll over and start from 0 again.
 //
 // To write a new mileage, write the new value at the current
@@ -33,7 +33,7 @@
 const int METRIC_FLAG = 0x1;
 
 // define if you want to see debug messages on the serial port
-//#define SERIAL_DEBUG_MSG
+#define SERIAL_DEBUG_MSG
 
 struct TripMarker
 {

@@ -62,7 +62,8 @@ void EEPROMStore::resetHeader()
 
 // read the header field from the EEPROM
 // this contains rarely written values
-void EEPROMStore::readEEPROMHeader() {
+void EEPROMStore::readEEPROMHeader()
+{
     Serial.print("EEPROM size:");
     Serial.println(EEPROM.length(), DEC);
 
@@ -70,7 +71,8 @@ void EEPROMStore::readEEPROMHeader() {
 
     Serial.print("EEPROM Header version:");
     Serial.println(_header.version, DEC);
-    if (_header.version != 0) {
+    if (_header.version != 0)
+    {
         initializeEEPROM();
         Serial.println("Reinitialized EEPROM as it was formatted incorrectly");
     }
@@ -113,13 +115,15 @@ void EEPROMStore::readEEPROMHeader() {
 }
 
 // write the header with updated values
-void EEPROMStore::updateHeader() {
+void EEPROMStore::updateHeader()
+{
     Serial.println("updateHeader");
     EEPROM.put(0, _header);
 }
 
 // initialize the eeprom to it's starting state with zero mileage
-void EEPROMStore::initializeEEPROM() {
+void EEPROMStore::initializeEEPROM()
+{
     Serial.println("initializeEEPROM");
     resetHeader();
     updateHeader();
@@ -129,13 +133,15 @@ void EEPROMStore::initializeEEPROM() {
 }
 
 // read the EEPROM value array to get the latest mileage value
-void EEPROMStore::scanEEPROMForLatest() {
+void EEPROMStore::scanEEPROMForLatest()
+{
     byte b;
     _latest_offset = k_start_eeprom_array;
     Serial.print("Scan eeprom for end marker");
     Serial.print(" at offset:");
     Serial.println(_latest_offset, DEC);
-    for (int i=_latest_offset; i<k_end_of_eeprom; ++i) {
+    for (int i=_latest_offset; i<k_end_of_eeprom; ++i)
+    {
         b = EEPROM.read(i);
 #if defined(SERIAL_DEBUG_MSG)
         Serial.print("b:");
@@ -143,19 +149,24 @@ void EEPROMStore::scanEEPROMForLatest() {
         Serial.print(" offset:");
         Serial.print(i, DEC);
 #endif
-        if ((b & 0x80) == 0) {
+        if ((b & 0x80) == 0)
+        {
             _latest_val = (b << 8) + EEPROM.read(++i);
 #if defined(SERIAL_DEBUG_MSG)
             Serial.print(" val:");
             Serial.println(_latest_val, DEC);
 #endif
-        } else {
+        }
+        else
+        {
+            _latest_val = ((b & 0x7f) << 8) + EEPROM.read(++i);
             break;
         }
         _latest_offset += 2;
     }
     // special case is EEPROM all 0, no values written yet
-    if (_latest_offset >= k_end_of_eeprom) {
+    if (_latest_offset >= k_end_of_eeprom)
+    {
         _latest_offset = k_start_eeprom_array;
         _latest_val = 0;
 #if defined(SERIAL_DEBUG_MSG)
@@ -169,31 +180,34 @@ void EEPROMStore::scanEEPROMForLatest() {
 }
 
 // write a new mileage value, updates the multiplier if need be
-void EEPROMStore::writeLatestEEPROM(word val) {
-    _latest_val = val;
-    // check for case where we have just rolled over, last byte will be marker
-    // _latest_offset will be start
-    bool overwrite_last = false;
-    if (_latest_offset == k_start_eeprom_array && EEPROM.read(k_end_of_eeprom-2) == 0x80) {
-        overwrite_last = true;
+void EEPROMStore::writeLatestEEPROM(word val)
+{
 #if defined(SERIAL_DEBUG_MSG)
-        Serial.println("blank end of eeprom array");
+    Serial.println("writeLatestEEPROM");
 #endif
+    _latest_val = val;
+    // check for case where we have are at beginning of eeprom array, don't
+    // need to rewrite the marker byte
+    bool rewrite = true;
+    if (_latest_offset == k_start_eeprom_array)
+    {
+        rewrite = false;
     }
+    byte old_marker = rewrite ? EEPROM.read(_latest_offset - 2) : 0;
     // if the mcu is turned off here before it is able to finish writing we could
-    // get a corrupted flash, so write the new marker byte first, and don't overwrite
+    // get a corrupted flash, so write the new word first, and don't rewrite
     // the existing marker byte till last. The additional marker byte won't get found
     // before the existing one if it hasn't yet been overwritten
-    EEPROM.write(_latest_offset + 2, 0x80);
-    EEPROM.update(_latest_offset + 1, val & 0x00ff);
-    EEPROM.update(_latest_offset, ((val & 0xff00) >> 8));
-    if (overwrite_last) {
-        EEPROM.write(k_end_of_eeprom - 2, 0);
+    EEPROM.update(_latest_offset++, ((val & 0xff00) >> 8) | 0x80);
+    EEPROM.update(_latest_offset++, val & 0x00ff);
+    // write over the old marker, unless it was at end of eeprom
+    if (rewrite)
+    {
+        EEPROM.write(_latest_offset - 4, old_marker & 0x7f);
     }
-    _latest_offset += 2;
-    // write the end marker
-    // if we've reached the end of eeprom, reset the latest offset
-    if (_latest_offset >= k_end_of_eeprom - 2) {
+    // if we've reached the end of eeprom, reset offset
+    if (_latest_offset >= k_end_of_eeprom - 2)
+    {
         _latest_offset = k_start_eeprom_array;
     }
 #if defined(SERIAL_DEBUG_MSG)
@@ -204,14 +218,16 @@ void EEPROMStore::writeLatestEEPROM(word val) {
 #endif
 }
 
-unsigned long EEPROMStore::multiplyMileage(byte multiplier, word val) {
-    unsigned long result = multiplier * 65535;
+unsigned long EEPROMStore::multiplyMileage(byte multiplier, word val)
+{
+    unsigned long result = multiplier * 0x8fff;
     result += val;
     return result;
 }
 
 // find the current mileage stored in EEPROM
-void EEPROMStore::readMileage() {
+void EEPROMStore::readMileage()
+{
     scanEEPROMForLatest();
     _mileage = multiplyMileage(_header.multiplier, _latest_val);
     _written_mileage = _mileage;
@@ -224,33 +240,50 @@ void EEPROMStore::readMileage() {
 bool EEPROMStore::collapseMileage(unsigned long mileage, byte& multiplier, word& val)
 {
     bool multiplier_changed = false;
-    unsigned long cval = mileage - (multiplier * 65535);
-    while (cval >= 65535) {
+    unsigned long cval = mileage - (multiplier * 0x8fff);
+    while (cval > 0x8fff)
+    {
         ++multiplier;
         multiplier_changed = true;
-        cval -= 65535;
+        cval -= 0x8fff;
     }
-    // now that we are under 65535, we can use a word
+    // now that we are under 0x8fff, we can use a word
     val = cval;
     return multiplier_changed;
 }
 
 // write the current mileage in the EEPROM, no effect
 // if the value is the same as already stored
-void EEPROMStore::writeMileage() {
+void EEPROMStore::writeMileage()
+{
 #if defined(SERIAL_DEBUG_MSG)
-    Serial.print("writeMileage");
+    Serial.println("writeMileage");
 #endif
-    if (_mileage == _written_mileage) {
+    if (_mileage == _written_mileage)
+    {
 #if defined(SERIAL_DEBUG_MSG)
         Serial.println(" - skip");
 #endif
         return;
     }
     word newval;
+    byte old_mult = _header.multiplier;
     if (collapseMileage(_mileage, _header.multiplier, newval))
-        updateHeader();
+    {
+        // rollover case
+        if (old_mult > _header.multiplier)
+        {
+            _mileage = 0;
+            newval = 0;
 #if defined(SERIAL_DEBUG_MSG)
+            Serial.println("### rollover ###");
+#endif
+        }
+        updateHeader();
+    }
+#if defined(SERIAL_DEBUG_MSG)
+    Serial.print("mileage:");
+    Serial.print(_mileage, DEC);
     Serial.print(" mult:");
     Serial.print(_header.multiplier, DEC);
     Serial.print(" val:");
@@ -323,8 +356,8 @@ int EEPROMStore::backlight()
 // set the backlight
 void EEPROMStore::setBacklight(int newval)
 {
-    _header.backlight_hi = (uint8_t)((newval & 0xff00) >> 8);
-    _header.backlight_lo = (uint8_t)(newval & 0xff);
+    _header.backlight_hi = static_cast<uint8_t>((newval & 0xff00) >> 8);
+    _header.backlight_lo = static_cast<uint8_t>(newval & 0xff);
     updateHeader();
 }
 
@@ -413,6 +446,9 @@ unsigned long EEPROMStore::trip1()
 {
     unsigned long marker_mileage = multiplyMileage(_header.trip1.multiplier,
                                                    _header.trip1.marker);
+    if (_mileage < marker_mileage)
+        // handle rollover
+        return _mileage + 9436929 - marker_mileage;
     return _mileage - marker_mileage;
 }
 
@@ -420,5 +456,9 @@ unsigned long EEPROMStore::trip2()
 {
     unsigned long marker_mileage = multiplyMileage(_header.trip2.multiplier,
                                                    _header.trip2.marker);
-    return _mileage - marker_mileage;
+    if (_mileage < marker_mileage)
+        // handle rollover
+        return _mileage + 9436929 - marker_mileage;
+    else
+        return _mileage - marker_mileage;
 }

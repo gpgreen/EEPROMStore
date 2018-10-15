@@ -88,13 +88,47 @@ public:
             TS_ASSERT_EQUALS( fixture.store()->trip2(), newm*2 );
             newm = 0;
             fixture.store()->setMileage(newm);
-            for (int i=0; i<65536*10; ++i) {
+            for (int i=0; i<EEPROM.length()*3; ++i) {
                 fixture.store()->addMileage(1);
                 fixture.store()->writeMileage();
                 TS_ASSERT_EQUALS( fixture.store()->mileage(), i + 1 );
                 TS_ASSERT_EQUALS( fixture.store()->trip1(), i + 1 );
                 TS_ASSERT_EQUALS( fixture.store()->trip2(), i + 1 );
             }
+        }
+
+    void test_mileage_set_add( void )
+        {
+            unsigned long m = 65000;
+            fixture.store()->setMileage(m);
+            for (int i=0; i<5; ++i)
+            {
+                fixture.store()->addMileage(1);
+                fixture.store()->writeMileage();
+            }
+
+            EEPROMStore* store1 = new EEPROMStore();
+            store1->begin();
+            TS_ASSERT_EQUALS( store1->mileage(), m + 5 );
+            TS_ASSERT_EQUALS( store1->trip1(), 5 );
+            TS_ASSERT_EQUALS( store1->trip2(), 5 );
+        }
+
+    void test_mileage_rollover( void )
+        {
+            unsigned long m = 255 * 0x8fff + 0x8ffe;
+            fixture.store()->setMileage(m);
+            for (int i=0; i<3; ++i)
+            {
+                fixture.store()->addMileage(1);
+                fixture.store()->writeMileage();
+            }
+
+            EEPROMStore* store1 = new EEPROMStore();
+            store1->begin();
+            TS_ASSERT_EQUALS( store1->mileage(), 1 );
+            TS_ASSERT_EQUALS( store1->trip1(), 3 );
+            TS_ASSERT_EQUALS( store1->trip2(), 3 );
         }
 
     void test_mileage_write( void )
